@@ -10,9 +10,11 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.Map;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
@@ -89,5 +91,59 @@ class UserControllerTest {
 
         mockMvc.perform(get("/api/users/99"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void updateUser_Success() throws Exception {
+        User updatedUser = new User();
+        updatedUser.setId(1L);
+        updatedUser.setName("Updated Name");
+        updatedUser.setEmail("jane@example.com");
+
+        when(userService.updateUserName(1L, "Updated Name")).thenReturn(updatedUser);
+
+        mockMvc.perform(put("/api/users/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", "Updated Name"))))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.name").value("Updated Name"))
+                .andExpect(jsonPath("$.email").value("jane@example.com"));
+    }
+
+    @Test
+    void updateUser_BlankName_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(put("/api/users/1")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", "  "))))
+                .andExpect(status().isBadRequest());
+    }
+
+    @Test
+    void updateUser_UserNotFound_ReturnsBadRequest() throws Exception {
+        when(userService.updateUserName(99L, "New Name"))
+                .thenThrow(new IllegalArgumentException("User not found with id: 99"));
+
+        mockMvc.perform(put("/api/users/99")
+                        .contentType(MediaType.APPLICATION_JSON)
+                        .content(objectMapper.writeValueAsString(Map.of("name", "New Name"))))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string("User not found with id: 99"));
+    }
+
+    @Test
+    void deleteUser_Success() throws Exception {
+        mockMvc.perform(delete("/api/users/1"))
+                .andExpect(status().isNoContent());
+    }
+
+    @Test
+    void deleteUser_UserNotFound_ReturnsBadRequest() throws Exception {
+        doThrow(new IllegalArgumentException("User not found with id: 99"))
+                .when(userService).deleteUser(99L);
+
+        mockMvc.perform(delete("/api/users/99"))
+                .andExpect(status().isBadRequest())
+                .andExpect(content().string("User not found with id: 99"));
     }
 }

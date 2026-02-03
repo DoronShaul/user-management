@@ -82,4 +82,61 @@ class UserServiceTest {
         assertTrue(result.isEmpty());
         verify(userRepository, times(1)).findById(99L);
     }
+
+    @Test
+    void updateUserName_UserExists_ReturnsUpdatedUser() {
+        testUser.setId(1L);
+        User updatedUser = new User();
+        updatedUser.setId(1L);
+        updatedUser.setName("Updated Name");
+        updatedUser.setEmail("john@example.com");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(userRepository.save(testUser)).thenReturn(updatedUser);
+
+        User result = userService.updateUserName(1L, "Updated Name");
+
+        assertNotNull(result);
+        assertEquals("Updated Name", result.getName());
+        verify(userRepository, times(1)).findById(1L);
+        verify(userRepository, times(1)).save(testUser);
+    }
+
+    @Test
+    void updateUserName_UserNotFound_ThrowsException() {
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> userService.updateUserName(99L, "New Name")
+        );
+
+        assertEquals("User not found with id: 99", exception.getMessage());
+        verify(userRepository, times(1)).findById(99L);
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void deleteUser_UserExists_DeletesSuccessfully() {
+        when(userRepository.existsById(1L)).thenReturn(true);
+
+        userService.deleteUser(1L);
+
+        verify(userRepository, times(1)).existsById(1L);
+        verify(userRepository, times(1)).deleteById(1L);
+    }
+
+    @Test
+    void deleteUser_UserNotFound_ThrowsException() {
+        when(userRepository.existsById(99L)).thenReturn(false);
+
+        IllegalArgumentException exception = assertThrows(
+                IllegalArgumentException.class,
+                () -> userService.deleteUser(99L)
+        );
+
+        assertEquals("User not found with id: 99", exception.getMessage());
+        verify(userRepository, times(1)).existsById(99L);
+        verify(userRepository, never()).deleteById(any(Long.class));
+    }
 }
