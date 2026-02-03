@@ -10,9 +10,11 @@ import org.springframework.boot.test.mock.mockito.MockBean;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 
+import java.util.Optional;
+
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.when;
-import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
 
 @WebMvcTest(UserController.class)
@@ -63,5 +65,29 @@ class UserControllerTest {
                         .content(objectMapper.writeValueAsString(user)))
                 .andExpect(status().isBadRequest())
                 .andExpect(content().string("Email already exists"));
+    }
+
+    @Test
+    void getUser_UserExists_ReturnsOk() throws Exception {
+        User user = new User();
+        user.setId(1L);
+        user.setName("Jane Doe");
+        user.setEmail("jane@example.com");
+
+        when(userService.findById(1L)).thenReturn(Optional.of(user));
+
+        mockMvc.perform(get("/api/users/1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.id").value(1))
+                .andExpect(jsonPath("$.name").value("Jane Doe"))
+                .andExpect(jsonPath("$.email").value("jane@example.com"));
+    }
+
+    @Test
+    void getUser_UserNotFound_ReturnsNotFound() throws Exception {
+        when(userService.findById(99L)).thenReturn(Optional.empty());
+
+        mockMvc.perform(get("/api/users/99"))
+                .andExpect(status().isNotFound());
     }
 }
