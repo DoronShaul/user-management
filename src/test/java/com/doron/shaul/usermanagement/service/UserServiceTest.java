@@ -9,6 +9,9 @@ import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
+import org.springframework.http.HttpStatus;
+import org.springframework.web.server.ResponseStatusException;
+
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -81,5 +84,68 @@ class UserServiceTest {
 
         assertTrue(result.isEmpty());
         verify(userRepository, times(1)).findById(99L);
+    }
+
+    @Test
+    void updateUser_UserExists_UpdatesNameOnly() {
+        User existing = new User();
+        existing.setId(1L);
+        existing.setName("John Doe");
+        existing.setEmail("john@example.com");
+
+        User updateRequest = new User();
+        updateRequest.setName("Jane Doe");
+        updateRequest.setEmail("ignored@example.com");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(existing));
+        when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
+
+        User result = userService.updateUser(1L, updateRequest);
+
+        assertEquals("Jane Doe", result.getName());
+        assertEquals("john@example.com", result.getEmail());
+        verify(userRepository, times(1)).findById(1L);
+        verify(userRepository, times(1)).save(existing);
+    }
+
+    @Test
+    void updateUser_UserNotFound_ThrowsException() {
+        User updateRequest = new User();
+        updateRequest.setName("Jane Doe");
+
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> userService.updateUser(99L, updateRequest)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+        verify(userRepository, times(1)).findById(99L);
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
+    void deleteUser_UserExists_DeletesUser() {
+        when(userRepository.existsById(1L)).thenReturn(true);
+
+        userService.deleteUser(1L);
+
+        verify(userRepository, times(1)).existsById(1L);
+        verify(userRepository, times(1)).deleteById(1L);
+    }
+
+    @Test
+    void deleteUser_UserNotFound_ThrowsException() {
+        when(userRepository.existsById(99L)).thenReturn(false);
+
+        ResponseStatusException exception = assertThrows(
+                ResponseStatusException.class,
+                () -> userService.deleteUser(99L)
+        );
+
+        assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
+        verify(userRepository, times(1)).existsById(99L);
+        verify(userRepository, never()).deleteById(any(Long.class));
     }
 }
