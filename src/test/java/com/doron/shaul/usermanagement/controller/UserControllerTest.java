@@ -13,6 +13,9 @@ import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import static org.mockito.ArgumentMatchers.any;
@@ -146,5 +149,44 @@ class UserControllerTest {
 
         mockMvc.perform(delete("/api/users/99"))
                 .andExpect(status().isNotFound());
+    }
+
+    @Test
+    void getUsersByName_MatchesFound_ReturnsOkWithList() throws Exception {
+        User user1 = new User();
+        user1.setId(1L);
+        user1.setName("Doron");
+        user1.setEmail("doron@example.com");
+
+        User user2 = new User();
+        user2.setId(2L);
+        user2.setName("Doris");
+        user2.setEmail("doris@example.com");
+
+        when(userService.findByNameContaining("do")).thenReturn(Arrays.asList(user1, user2));
+
+        mockMvc.perform(get("/api/users").param("name", "do"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$[0].id").value(1))
+                .andExpect(jsonPath("$[0].name").value("Doron"))
+                .andExpect(jsonPath("$[0].email").value("doron@example.com"))
+                .andExpect(jsonPath("$[1].id").value(2))
+                .andExpect(jsonPath("$[1].name").value("Doris"))
+                .andExpect(jsonPath("$[1].email").value("doris@example.com"));
+    }
+
+    @Test
+    void getUsersByName_NoMatches_ReturnsOkWithEmptyList() throws Exception {
+        when(userService.findByNameContaining("xyz")).thenReturn(Collections.emptyList());
+
+        mockMvc.perform(get("/api/users").param("name", "xyz"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$").isEmpty());
+    }
+
+    @Test
+    void getUsersByName_MissingParam_ReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/users"))
+                .andExpect(status().isBadRequest());
     }
 }
