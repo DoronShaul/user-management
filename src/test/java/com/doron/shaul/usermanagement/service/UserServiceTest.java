@@ -12,6 +12,9 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.server.ResponseStatusException;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.List;
 import java.util.Optional;
 
 import static org.junit.jupiter.api.Assertions.*;
@@ -147,5 +150,39 @@ class UserServiceTest {
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
         verify(userRepository, times(1)).existsById(99L);
         verify(userRepository, never()).deleteById(any(Long.class));
+    }
+
+    @Test
+    void findByNameContaining_MatchesFound_ReturnsList() {
+        User user1 = new User();
+        user1.setId(1L);
+        user1.setName("Doron");
+        user1.setEmail("doron@example.com");
+
+        User user2 = new User();
+        user2.setId(2L);
+        user2.setName("Doris");
+        user2.setEmail("doris@example.com");
+
+        when(userRepository.findByNameContainingIgnoreCase("do")).thenReturn(Arrays.asList(user1, user2));
+
+        List<User> result = userService.findByNameContaining("do");
+
+        assertNotNull(result);
+        assertEquals(2, result.size());
+        assertEquals("Doron", result.get(0).getName());
+        assertEquals("Doris", result.get(1).getName());
+        verify(userRepository, times(1)).findByNameContainingIgnoreCase("do");
+    }
+
+    @Test
+    void findByNameContaining_NoMatches_ReturnsEmptyList() {
+        when(userRepository.findByNameContainingIgnoreCase("xyz")).thenReturn(Collections.emptyList());
+
+        List<User> result = userService.findByNameContaining("xyz");
+
+        assertNotNull(result);
+        assertTrue(result.isEmpty());
+        verify(userRepository, times(1)).findByNameContainingIgnoreCase("xyz");
     }
 }
