@@ -10,6 +10,8 @@ import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import org.springframework.http.HttpStatus;
+import org.springframework.security.access.AccessDeniedException;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.server.ResponseStatusException;
 
 import java.util.Arrays;
@@ -90,7 +92,7 @@ class UserServiceTest {
     }
 
     @Test
-    void updateUser_UserExists_UpdatesNameOnly() {
+    void updateUser_AuthenticatedAsOwner_Success() {
         User existing = new User();
         existing.setId(1L);
         existing.setName("John Doe");
@@ -100,10 +102,13 @@ class UserServiceTest {
         updateRequest.setName("Jane Doe");
         updateRequest.setEmail("ignored@example.com");
 
+        Authentication auth = mock(Authentication.class);
+        when(auth.getName()).thenReturn("john@example.com");
+
         when(userRepository.findById(1L)).thenReturn(Optional.of(existing));
         when(userRepository.save(any(User.class))).thenAnswer(invocation -> invocation.getArgument(0));
 
-        User result = userService.updateUser(1L, updateRequest);
+        User result = userService.updateUser(1L, updateRequest, auth);
 
         assertEquals("Jane Doe", result.getName());
         assertEquals("john@example.com", result.getEmail());
@@ -112,15 +117,42 @@ class UserServiceTest {
     }
 
     @Test
+    void updateUser_AuthenticatedAsNonOwner_ThrowsAccessDenied() {
+        User existing = new User();
+        existing.setId(1L);
+        existing.setName("John Doe");
+        existing.setEmail("john@example.com");
+
+        User updateRequest = new User();
+        updateRequest.setName("Jane Doe");
+
+        Authentication auth = mock(Authentication.class);
+        when(auth.getName()).thenReturn("hacker@example.com");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        AccessDeniedException exception = assertThrows(
+                AccessDeniedException.class,
+                () -> userService.updateUser(1L, updateRequest, auth)
+        );
+
+        assertEquals("Cannot update other users", exception.getMessage());
+        verify(userRepository, times(1)).findById(1L);
+        verify(userRepository, never()).save(any(User.class));
+    }
+
+    @Test
     void updateUser_UserNotFound_ThrowsException() {
         User updateRequest = new User();
         updateRequest.setName("Jane Doe");
+
+        Authentication auth = mock(Authentication.class);
 
         when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
-                () -> userService.updateUser(99L, updateRequest)
+                () -> userService.updateUser(99L, updateRequest, auth)
         );
 
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
@@ -129,26 +161,58 @@ class UserServiceTest {
     }
 
     @Test
-    void deleteUser_UserExists_DeletesUser() {
-        when(userRepository.existsById(1L)).thenReturn(true);
+    void deleteUser_AuthenticatedAsOwner_Success() {
+        User existing = new User();
+        existing.setId(1L);
+        existing.setName("John Doe");
+        existing.setEmail("john@example.com");
 
-        userService.deleteUser(1L);
+        Authentication auth = mock(Authentication.class);
+        when(auth.getName()).thenReturn("john@example.com");
 
-        verify(userRepository, times(1)).existsById(1L);
+        when(userRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        userService.deleteUser(1L, auth);
+
+        verify(userRepository, times(1)).findById(1L);
         verify(userRepository, times(1)).deleteById(1L);
     }
 
     @Test
+    void deleteUser_AuthenticatedAsNonOwner_ThrowsAccessDenied() {
+        User existing = new User();
+        existing.setId(1L);
+        existing.setName("John Doe");
+        existing.setEmail("john@example.com");
+
+        Authentication auth = mock(Authentication.class);
+        when(auth.getName()).thenReturn("hacker@example.com");
+
+        when(userRepository.findById(1L)).thenReturn(Optional.of(existing));
+
+        AccessDeniedException exception = assertThrows(
+                AccessDeniedException.class,
+                () -> userService.deleteUser(1L, auth)
+        );
+
+        assertEquals("Cannot delete other users", exception.getMessage());
+        verify(userRepository, times(1)).findById(1L);
+        verify(userRepository, never()).deleteById(any(Long.class));
+    }
+
+    @Test
     void deleteUser_UserNotFound_ThrowsException() {
-        when(userRepository.existsById(99L)).thenReturn(false);
+        Authentication auth = mock(Authentication.class);
+
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
         ResponseStatusException exception = assertThrows(
                 ResponseStatusException.class,
-                () -> userService.deleteUser(99L)
+                () -> userService.deleteUser(99L, auth)
         );
 
         assertEquals(HttpStatus.NOT_FOUND, exception.getStatusCode());
-        verify(userRepository, times(1)).existsById(99L);
+        verify(userRepository, times(1)).findById(99L);
         verify(userRepository, never()).deleteById(any(Long.class));
     }
 

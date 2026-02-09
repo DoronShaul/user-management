@@ -1,0 +1,4 @@
+src/main/resources/application.properties
+pom.xml
+src/main/java/com/doron/shaul/usermanagement/config/SecurityConfig.java
+src/test/java/com/doron/shaul/usermanagement/actuator/HealthEndpointTest.java
